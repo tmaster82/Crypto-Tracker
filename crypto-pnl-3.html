@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>평단 수익률 계산기</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0a0f; --surface:#12121a; --surface2:#1a1a26;
+    --border:#1e1e2e; --border2:#2a2a3e;
+    --text:#e8e8f0; --muted:#6b6b88;
+    --profit:#00e5a0; --loss:#ff4d6d;
+    --accent:#6c63ff; --accent2:#00d4ff; --warn:#ffb84d;
+    --mono:'IBM Plex Mono',monospace; --sans:'Syne',sans-serif;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;padding:18px 13px 70px;overflow-x:hidden;}
+  body::before{content:'';position:fixed;top:-200px;left:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(108,99,255,.07) 0%,transparent 70%);pointer-events:none;}
+  body::after{content:'';position:fixed;bottom:-200px;right:-200px;width:500px;height:500px;background:radial-gradient(circle,rgba(0,212,255,.05) 0%,transparent 70%);pointer-events:none;}
+  .container{max-width:780px;margin:0 auto;}
+
+  /* Header */
+  .header-label{font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--accent);text-transform:uppercase;margin-bottom:5px;opacity:.8;}
+  h1{font-size:clamp(22px,5vw,36px);font-weight:800;letter-spacing:-1px;color:#fff;}
+  h1 span{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+  .subtitle{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px;margin-bottom:18px;}
+
+  /* Summary */
+  .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}
+  .summary-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 13px;}
+  .s-label{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;}
+  .s-val{font-family:var(--mono);font-size:clamp(11px,3vw,14px);font-weight:600;color:#fff;word-break:break-all;}
+  .summary-card.profit .s-val{color:var(--profit);}
+  .summary-card.loss .s-val{color:var(--loss);}
+  .summary-card.neutral .s-val{color:var(--warn);}
+
+  /* Controls */
+  .controls{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
+  .section-title{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);}
+  .right-btns{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+  .currency-toggle{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .currency-toggle button{background:none;border:none;color:var(--muted);cursor:pointer;font-family:var(--mono);font-size:10px;padding:5px 11px;transition:background .2s,color .2s;}
+  .currency-toggle button.active{background:var(--accent);color:#fff;}
+  .btn-sm{background:none;border:1px solid var(--border2);border-radius:7px;color:var(--muted);cursor:pointer;font-family:var(--mono);font-size:10px;padding:5px 9px;transition:color .2s,border-color .2s,background .2s;white-space:nowrap;}
+  .btn-sm.refresh{color:var(--accent2);}
+  .btn-sm.refresh:hover{border-color:var(--accent2);background:rgba(0,212,255,.06);}
+  .btn-sm.add-coin{color:var(--accent);border-color:var(--accent);}
+  .btn-sm.add-coin:hover{background:rgba(108,99,255,.12);}
+  .btn-sm.danger:hover{color:var(--loss);border-color:rgba(255,77,109,.4);}
+
+  /* Modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;padding:16px;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;}
+  .modal-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
+  .modal-fields{display:flex;flex-direction:column;gap:10px;}
+  .mfield{display:flex;flex-direction:column;gap:5px;}
+  .mfield label{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+  .mfield input{background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:14px;padding:10px 12px;outline:none;transition:border-color .2s;}
+  .mfield input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(108,99,255,.12);}
+  .modal-btns{display:flex;gap:8px;margin-top:14px;}
+  .btn-confirm{flex:1;background:var(--accent);border:none;border-radius:8px;color:#fff;cursor:pointer;font-family:var(--sans);font-size:14px;font-weight:700;padding:10px;transition:background .2s;}
+  .btn-confirm:hover{background:#7c75ff;}
+  .btn-cancel-modal{background:none;border:1px solid var(--border2);border-radius:8px;color:var(--muted);cursor:pointer;font-family:var(--mono);font-size:11px;padding:10px 14px;}
+  .fetch-hint{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px;}
+  .btn-fetch-inline{background:none;border:none;color:var(--accent2);cursor:pointer;font-family:var(--mono);font-size:10px;text-decoration:underline;padding:0;}
+  .info-box{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-family:var(--mono);font-size:11px;line-height:1.7;}
+  .preview-box{background:var(--bg);border:1px solid var(--accent);border-radius:8px;padding:10px 12px;margin-top:10px;font-family:var(--mono);font-size:11px;line-height:1.8;display:none;}
+
+  /* Holdings */
+  .holdings{display:flex;flex-direction:column;gap:7px;}
+
+  /* Coin Block = row + history panel */
+  .coin-block{border-radius:12px;overflow:hidden;border:1px solid var(--border);transition:border-color .2s;}
+  .coin-block.expanded{border-color:var(--accent);}
+
+  .holding-row{
+    background:var(--surface);padding:11px 13px;
+    display:grid;grid-template-columns:36px 1fr 1fr 1fr auto;
+    gap:8px;align-items:center;cursor:pointer;
+    transition:background .15s;
+  }
+  .holding-row:hover{background:var(--surface2);}
+  .holding-row.editing{border-bottom:1px solid var(--accent);}
+
+  /* History Panel */
+  .history-panel{
+    background:var(--surface2);
+    border-top:1px solid var(--border);
+    display:none;
+    padding:0;
+    animation:slideDown .2s ease;
+  }
+  @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  .coin-block.expanded .history-panel{display:block;}
+
+  .history-header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 13px 6px;
+  }
+  .history-title{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--accent2);text-transform:uppercase;}
+
+  .history-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10px;}
+  .history-table th{
+    color:var(--muted);font-weight:400;letter-spacing:1px;text-transform:uppercase;
+    padding:4px 13px;text-align:left;font-size:9px;border-bottom:1px solid var(--border);
+  }
+  .history-table td{padding:7px 13px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  .history-table tr:last-child td{border-bottom:none;}
+  .history-table tr:hover td{background:rgba(255,255,255,.02);}
+
+  .tx-type{
+    display:inline-block;border-radius:4px;padding:1px 6px;
+    font-size:9px;font-weight:600;letter-spacing:.5px;
+  }
+  .tx-type.buy{background:rgba(0,229,160,.12);color:var(--profit);}
+  .tx-type.init{background:rgba(108,99,255,.12);color:var(--accent);}
+  .tx-date{color:var(--muted);font-size:9px;}
+  .tx-qty{color:var(--text);}
+  .tx-price{color:var(--warn);}
+  .tx-avg-after{color:var(--accent2);}
+  .tx-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 5px;border-radius:4px;transition:color .2s;}
+  .tx-del:hover{color:var(--loss);}
+
+  .history-empty{padding:12px 13px;font-family:var(--mono);font-size:10px;color:var(--muted);}
+
+  /* coin icon / cells */
+  .coin-icon{width:34px;height:34px;border-radius:50%;overflow:hidden;background:var(--border2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;}
+  .coin-icon img{width:34px;height:34px;object-fit:cover;display:block;}
+  .cell-name{display:flex;flex-direction:column;min-width:0;}
+  .cell-name .sym{font-family:var(--mono);font-size:13px;font-weight:700;color:#fff;}
+  .qty-text{font-family:var(--mono);font-size:9px;color:var(--muted);cursor:pointer;white-space:nowrap;margin-top:2px;}
+  .qty-text:hover{color:var(--accent2);text-decoration:underline dotted;}
+  .qty-edit-wrap{display:none;align-items:center;gap:3px;margin-top:2px;}
+  .qty-edit-wrap.active{display:flex;}
+  .qty-input{background:var(--bg);border:1px solid var(--accent);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:10px;padding:3px 6px;outline:none;width:100px;}
+  .qty-btn{background:var(--accent);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:10px;padding:3px 6px;}
+  .qty-x{background:none;border:1px solid var(--border2);border-radius:4px;color:var(--muted);cursor:pointer;font-size:10px;padding:3px 5px;}
+
+  .ef{display:flex;flex-direction:column;min-width:0;}
+  .ef-label{font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:flex;align-items:center;gap:3px;margin-bottom:2px;}
+  .ef-label .eico{cursor:pointer;color:var(--accent2);opacity:0;transition:opacity .15s;font-size:9px;}
+  .holding-row:hover .eico{opacity:.8;}
+  .ef-val{font-family:var(--mono);font-size:12px;color:var(--text);font-weight:500;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ef-val:hover{color:var(--accent2);text-decoration:underline dotted;}
+  .ef-val.plain{cursor:default;}
+  .ef-val.plain:hover{color:var(--text);text-decoration:none;}
+  .ef-sub{font-family:var(--mono);font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ef-edit-wrap{display:none;align-items:center;gap:4px;flex-wrap:wrap;}
+  .ef-edit-wrap.active{display:flex;}
+  .ef-input{background:var(--bg);border:1px solid var(--accent);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:12px;padding:4px 8px;outline:none;width:120px;box-shadow:0 0 0 2px rgba(108,99,255,.1);}
+  .ef-ok{background:var(--accent);border:none;border-radius:5px;color:#fff;cursor:pointer;font-family:var(--mono);font-size:10px;padding:4px 8px;white-space:nowrap;}
+  .ef-ok:hover{background:#7c75ff;}
+  .ef-no{background:none;border:1px solid var(--border2);border-radius:5px;color:var(--muted);cursor:pointer;font-family:var(--mono);font-size:10px;padding:4px 6px;}
+
+  .cell-pnl{display:flex;flex-direction:column;align-items:flex-start;gap:3px;}
+  .pnl-val{font-family:var(--mono);font-size:12px;font-weight:600;white-space:nowrap;}
+  .pnl-val.profit{color:var(--profit);}
+  .pnl-val.loss{color:var(--loss);}
+  .pnl-badge{display:inline-block;border-radius:5px;padding:2px 6px;font-family:var(--mono);font-size:11px;font-weight:600;white-space:nowrap;}
+  .pnl-badge.profit{background:rgba(0,229,160,.12);color:var(--profit);}
+  .pnl-badge.loss{background:rgba(255,77,109,.12);color:var(--loss);}
+  .pnl-badge.zero{background:rgba(255,184,77,.12);color:var(--warn);}
+
+  .btn-del{background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:3px 6px;transition:color .2s,border-color .2s;}
+  .btn-del:hover{color:var(--loss);border-color:rgba(255,77,109,.3);}
+  .btn-buy-more{background:none;border:1px solid var(--border2);border-radius:6px;color:var(--accent2);cursor:pointer;font-family:var(--mono);font-size:9px;padding:3px 7px;transition:background .2s,border-color .2s;white-space:nowrap;}
+  .btn-buy-more:hover{background:rgba(0,212,255,.08);border-color:var(--accent2);}
+  .expand-arrow{font-size:10px;color:var(--muted);transition:transform .2s;display:inline-block;}
+  .coin-block.expanded .expand-arrow{transform:rotate(180deg);}
+
+  .empty{text-align:center;padding:40px 20px;color:var(--muted);font-family:var(--mono);font-size:11px;border:1px dashed var(--border);border-radius:12px;}
+
+  @keyframes flashGreen{0%{background:rgba(0,229,160,.12)}100%{background:transparent}}
+  .flash{animation:flashGreen .6s ease;}
+
+  @media(max-width:560px){
+    .holding-row{grid-template-columns:34px 1fr 1fr auto;grid-template-rows:auto auto;gap:5px 7px;}
+    .coin-icon{grid-row:1/3;}
+    .cell-name{grid-column:2;grid-row:1;}
+    .ef:nth-of-type(1){grid-column:3;grid-row:1;}
+    .cell-pnl{grid-column:4;grid-row:1;}
+    .ef:nth-of-type(2){grid-column:2;grid-row:2;}
+    .ef:nth-of-type(3){grid-column:3/5;grid-row:2;}
+    .summary{grid-template-columns:1fr 1fr;}
+    .summary-card:last-child{grid-column:span 2;}
+    .history-table th,.history-table td{padding:5px 10px;}
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header-label">// Portfolio Tracker</div>
+  <h1>거래소 <span>평단</span> 수익률 계산기</h1>
+  <p class="subtitle">평단가·수량 직접 수정 &nbsp;·&nbsp; 매수 히스토리 누적 관리</p>
+
+  <div class="summary">
+    <div class="summary-card">
+      <div class="s-label">총 매수금액</div>
+      <div class="s-val" id="sum-cost">-</div>
+    </div>
+    <div class="summary-card">
+      <div class="s-label">현재 평가금액</div>
+      <div class="s-val" id="sum-cur">조회 중...</div>
+    </div>
+    <div class="summary-card neutral" id="sum-pnl-card">
+      <div class="s-label">총 손익</div>
+      <div class="s-val" id="sum-pnl">-</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="section-title">// 보유 코인</div>
+    <div class="right-btns">
+      <div class="currency-toggle">
+        <button class="active" id="btn-krw" onclick="setCurrency('KRW')">KRW</button>
+        <button id="btn-usd" onclick="setCurrency('USD')">USD</button>
+      </div>
+      <button class="btn-sm refresh" onclick="refreshAllPrices()">⟳ 현재가</button>
+      <button class="btn-sm add-coin" onclick="openModal()">+ 추가</button>
+      <button class="btn-sm danger" onclick="resetToPreset()">초기화</button>
+    </div>
+  </div>
+
+  <div class="holdings" id="holdings"></div>
+  <div class="empty" id="empty-state" style="display:none">코인 데이터가 없어요</div>
+
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">// 코인 추가</div>
+    <div id="modal-info-box" class="info-box" style="display:none">
+      <span style="color:var(--muted)">현재 보유</span> <span id="ei-qty" style="color:#fff;font-weight:600"></span>
+      &nbsp;·&nbsp; <span style="color:var(--muted)">평단</span> <span id="ei-avg" style="color:var(--accent2);font-weight:600"></span>
+    </div>
+    <div class="modal-fields">
+      <div class="mfield" id="mfield-symbol">
+        <label>심볼</label>
+        <input id="m-symbol" type="text" placeholder="BTC" maxlength="12" oninput="onSymbolInput()" style="text-transform:uppercase"/>
+      </div>
+      <div class="mfield">
+        <label id="m-qty-label">수량</label>
+        <input id="m-qty" type="number" placeholder="0.0" step="any" min="0" oninput="calcPreview()"/>
+      </div>
+      <div class="mfield">
+        <label id="m-avg-label">매수 평단가 (KRW)</label>
+        <input id="m-avg" type="number" placeholder="0" step="any" min="0" oninput="calcPreview()"/>
+      </div>
+      <div class="mfield">
+        <label>날짜 (선택)</label>
+        <input id="m-date" type="date"/>
+      </div>
+    </div>
+    <div id="preview-box" class="preview-box">
+      <span style="color:var(--muted)">추가 후 수량</span> <span id="pv-qty" style="color:#fff;font-weight:600"></span><br>
+      <span style="color:var(--muted)">새 통합 평단</span> <span id="pv-avg" style="color:var(--accent2);font-weight:600"></span>
+    </div>
+    <div class="fetch-hint" style="margin-top:10px">
+      <button class="btn-fetch-inline" onclick="fetchModalPrice()">⟳ 업비트 현재가 불러오기</button>
+      <span id="m-fetch-status"></span>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-confirm" id="modal-confirm-btn" onclick="submitModal()">추가</button>
+      <button class="btn-cancel-modal" onclick="closeModal()">취소</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 초기 데이터 ───────────────────────────────────────────────
+const TODAY = new Date().toISOString().slice(0,10);
+
+const PRESET = [
+  {symbol:'ETH',   qty:11.00000000,    avg:3984052  },
+  {symbol:'BTC',   qty:0.30500000,     avg:119376566},
+  {symbol:'XRP',   qty:5700.53022181,  avg:3364.9   },
+  {symbol:'SOL',   qty:203.24496936,   avg:252277   },
+  {symbol:'SUI',   qty:3889.18060377,  avg:5383.3   },
+  {symbol:'TRUMP', qty:1101.00000000,  avg:11373    },
+  {symbol:'ETC',   qty:371.72573776,   avg:32119    },
+  {symbol:'AVAX',  qty:258.00000000,   avg:56222    },
+  {symbol:'STX',   qty:10363.47171072, avg:1397.8   },
+  {symbol:'DOGE',  qty:24449.02195588, avg:388.1    },
+  {symbol:'ADA',   qty:10447.85220780, avg:1160     },
+];
+
+// coin 구조: { id, symbol, qty, avg, cur, history:[ {id,date,type,qty,price,avgAfter,qtyAfter} ] }
+const STORE = 'mycoins_v2';
+let coins = JSON.parse(localStorage.getItem(STORE) || 'null');
+if (!coins) {
+  coins = PRESET.map((c,i) => ({
+    id: Date.now()+i, cur:0, ...c,
+    history:[{ id:Date.now()+i+1000, date:TODAY, type:'init',
+               qty:c.qty, price:c.avg, avgAfter:c.avg, qtyAfter:c.qty }]
+  }));
+  save();
+}
+// 구버전 마이그레이션: history 없으면 추가
+coins.forEach(c => { if (!c.history) c.history=[]; });
+
+let currency = localStorage.getItem('cur') || 'KRW';
+let usdRate  = 1350;
+let modalTargetId = null;
+let expandedIds   = new Set();
+
+// ── Icons ─────────────────────────────────────────────────────
+const ICONS = {
+  BTC:'https://assets.coingecko.com/coins/images/1/small/bitcoin.png',
+  ETH:'https://assets.coingecko.com/coins/images/279/small/ethereum.png',
+  XRP:'https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png',
+  SOL:'https://assets.coingecko.com/coins/images/4128/small/solana.png',
+  ADA:'https://assets.coingecko.com/coins/images/975/small/cardano.png',
+  DOGE:'https://assets.coingecko.com/coins/images/5/small/dogecoin.png',
+  AVAX:'https://assets.coingecko.com/coins/images/12559/small/Avalanche_Circle_RedWhite_Trans.png',
+  SUI:'https://assets.coingecko.com/coins/images/26375/small/sui-ocean-square.png',
+  STX:'https://assets.coingecko.com/coins/images/2069/small/Stacks_logo_full.png',
+  ETC:'https://assets.coingecko.com/coins/images/453/small/ethereum-classic-logo.png',
+  TRUMP:'https://assets.coingecko.com/coins/images/53971/small/TRUMP.jpg',
+  BNB:'https://assets.coingecko.com/coins/images/825/small/bnb-icon2_2x.png',
+  LTC:'https://assets.coingecko.com/coins/images/2/small/litecoin.png',
+};
+function coinBg(s){
+  const m={BTC:'#f7931a',ETH:'#627eea',XRP:'#00aab5',SOL:'#9945ff',
+           ADA:'#0033ad',DOGE:'#c2a633',AVAX:'#e84142',SUI:'#6fbcf0',
+           STX:'#5546ff',ETC:'#328432',TRUMP:'#c8102e'};
+  return m[s]||'#6c63ff';
+}
+
+// ── Utils ─────────────────────────────────────────────────────
+function save(){ localStorage.setItem(STORE, JSON.stringify(coins)); }
+function fmtQty(n){ return n.toLocaleString('ko-KR',{maximumFractionDigits:8}); }
+function fmt(n,c){
+  if(c==='USD') return '$'+(n/usdRate).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(Math.abs(n)<10) return '₩'+n.toFixed(1);
+  return '₩'+Math.round(n).toLocaleString('ko-KR');
+}
+function fmtDate(s){ return s ? s.replace(/-/g,'.') : '-'; }
+
+async function fetchUSDRate(){
+  try{
+    const r=await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
+    const d=await r.json();
+    if(d.rates?.KRW) usdRate=d.rates.KRW;
+  }catch{}
+}
+
+// ── Currency ──────────────────────────────────────────────────
+function setCurrency(c){
+  currency=c; localStorage.setItem('cur',c);
+  document.getElementById('btn-krw').classList.toggle('active',c==='KRW');
+  document.getElementById('btn-usd').classList.toggle('active',c==='USD');
+  render();
+}
+
+// ── Reset ─────────────────────────────────────────────────────
+function resetToPreset(){
+  if(!confirm('초기 데이터로 되돌릴까요?\n(모든 히스토리 삭제)')) return;
+  coins = PRESET.map((c,i)=>({
+    id:Date.now()+i, cur:0, ...c,
+    history:[{id:Date.now()+i+999, date:TODAY, type:'init',
+              qty:c.qty, price:c.avg, avgAfter:c.avg, qtyAfter:c.qty}]
+  }));
+  expandedIds.clear();
+  save(); render(); refreshAllPrices();
+}
+
+// ── Toggle History ────────────────────────────────────────────
+function toggleHistory(id, e){
+  // 편집 요소 클릭 시 무시
+  if(e && (e.target.closest('.ef-edit-wrap') || e.target.closest('.qty-edit-wrap') ||
+           e.target.closest('.btn-buy-more') || e.target.closest('.btn-del') ||
+           e.target.closest('.eico') || e.target.closest('.qty-text'))) return;
+  if(expandedIds.has(id)) expandedIds.delete(id);
+  else expandedIds.add(id);
+  render();
+}
+
+// ── Delete TX ─────────────────────────────────────────────────
+function deleteTx(coinId, txId, e){
+  e.stopPropagation();
+  const coin = coins.find(c=>c.id===coinId); if(!coin) return;
+  if(coin.history.length<=1){ alert('마지막 내역은 삭제할 수 없어요.'); return; }
+  if(!confirm('이 매수 내역을 삭제할까요?\n(수량·평단은 재계산됩니다)')) return;
+
+  coin.history = coin.history.filter(t=>t.id!==txId);
+  // 히스토리 기반으로 수량·평단 재계산
+  recalcFromHistory(coin);
+  save(); render();
+}
+
+function recalcFromHistory(coin){
+  // 첫 내역부터 순서대로 재계산
+  let qty=0, totalCost=0;
+  coin.history.forEach(tx => {
+    qty      += tx.qty;
+    totalCost += tx.qty * tx.price;
+    tx.qtyAfter  = qty;
+    tx.avgAfter  = totalCost / qty;
+  });
+  coin.qty = qty;
+  coin.avg = totalCost / qty;
+}
+
+// ── Modal ─────────────────────────────────────────────────────
+function openModal(targetId=null){
+  modalTargetId = targetId;
+  const coin = targetId ? coins.find(c=>c.id===targetId) : null;
+  const isExisting = !!coin;
+
+  document.getElementById('modal-title').textContent =
+    coin ? `// ${coin.symbol} 추가 매수` : '// 새 코인 추가';
+  document.getElementById('mfield-symbol').style.display = coin ? 'none' : 'flex';
+  document.getElementById('m-symbol').value = coin ? coin.symbol : '';
+
+  const infoBox = document.getElementById('modal-info-box');
+  if(coin){
+    infoBox.style.display='block';
+    document.getElementById('ei-qty').textContent = fmtQty(coin.qty)+'개';
+    document.getElementById('ei-avg').textContent = fmt(coin.avg,'KRW');
+  } else {
+    infoBox.style.display='none';
+  }
+
+  document.getElementById('m-qty-label').textContent  = coin ? '추가 매수 수량' : '수량';
+  document.getElementById('m-avg-label').textContent  = coin ? '추가 매수 평단가 (KRW)' : '평단가 (KRW)';
+  document.getElementById('modal-confirm-btn').textContent = coin ? '추가 매수 반영' : '추가';
+  document.getElementById('m-qty').value  = '';
+  document.getElementById('m-avg').value  = '';
+  document.getElementById('m-date').value = TODAY;
+  document.getElementById('preview-box').style.display = 'none';
+  document.getElementById('m-fetch-status').textContent = '';
+  document.getElementById('modal').classList.add('open');
+  setTimeout(()=>(coin ? document.getElementById('m-qty') : document.getElementById('m-symbol')).focus(), 60);
+}
+
+function closeModal(){ document.getElementById('modal').classList.remove('open'); modalTargetId=null; }
+
+function onSymbolInput(){
+  const sym = document.getElementById('m-symbol').value.trim().toUpperCase();
+  const existing = coins.find(c=>c.symbol===sym);
+  const infoBox  = document.getElementById('modal-info-box');
+  if(existing){
+    infoBox.style.display='block';
+    document.getElementById('ei-qty').textContent = fmtQty(existing.qty)+'개';
+    document.getElementById('ei-avg').textContent = fmt(existing.avg,'KRW');
+  } else {
+    infoBox.style.display='none';
+  }
+  calcPreview();
+}
+
+function calcPreview(){
+  const sym    = document.getElementById('m-symbol').value.trim().toUpperCase();
+  const addQty = parseFloat(document.getElementById('m-qty').value);
+  const addAvg = parseFloat(document.getElementById('m-avg').value);
+  const box    = document.getElementById('preview-box');
+
+  const target = modalTargetId ? coins.find(c=>c.id===modalTargetId) : coins.find(c=>c.symbol===sym);
+  if(!target || isNaN(addQty)||addQty<=0 || isNaN(addAvg)||addAvg<=0){ box.style.display='none'; return; }
+
+  const newQty = target.qty + addQty;
+  const newAvg = (target.qty*target.avg + addQty*addAvg) / newQty;
+  document.getElementById('pv-qty').textContent = fmtQty(newQty)+'개';
+  document.getElementById('pv-avg').textContent = fmt(newAvg,'KRW');
+  box.style.display = 'block';
+}
+
+async function fetchModalPrice(){
+  const sym = document.getElementById('m-symbol').value.trim().toUpperCase();
+  const st  = document.getElementById('m-fetch-status');
+  if(!sym){ st.textContent=' 심볼 입력 필요'; return; }
+  st.textContent=' 조회 중...';
+  try{
+    const r=await fetch(`https://api.upbit.com/v1/ticker?markets=KRW-${sym}`);
+    const d=await r.json();
+    if(d?.[0]?.trade_price){
+      document.getElementById('m-avg').value=d[0].trade_price;
+      st.textContent=` ✓ ${d[0].trade_price.toLocaleString()} KRW`;
+      calcPreview();
+    } else st.textContent=' 마켓 없음';
+  }catch{ st.textContent=' 실패'; }
+}
+
+function submitModal(){
+  const sym    = document.getElementById('m-symbol').value.trim().toUpperCase();
+  const addQty = parseFloat(document.getElementById('m-qty').value);
+  const addAvg = parseFloat(document.getElementById('m-avg').value);
+  const date   = document.getElementById('m-date').value || TODAY;
+
+  if(!sym||isNaN(addQty)||addQty<=0||isNaN(addAvg)||addAvg<=0){
+    ['m-qty','m-avg'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(!el.value){el.style.borderColor='var(--loss)';setTimeout(()=>el.style.borderColor='',1000);}
+    });
+    return;
+  }
+
+  const target = modalTargetId ? coins.find(c=>c.id===modalTargetId) : coins.find(c=>c.symbol===sym);
+
+  if(target){
+    // 추가 매수 → 히스토리 추가 후 재계산
+    const newQty = target.qty + addQty;
+    const newAvg = (target.qty*target.avg + addQty*addAvg) / newQty;
+    target.history.push({
+      id: Date.now(), date, type:'buy',
+      qty:addQty, price:addAvg,
+      avgAfter:newAvg, qtyAfter:newQty
+    });
+    target.qty = newQty;
+    target.avg = newAvg;
+    expandedIds.add(target.id); // 히스토리 자동 열기
+    save(); render(); closeModal();
+    flashBlock(target.id);
+  } else {
+    // 새 코인
+    const newCoin = {
+      id:Date.now(), symbol:sym, qty:addQty, avg:addAvg, cur:0,
+      history:[{id:Date.now()+1, date, type:'init', qty:addQty, price:addAvg, avgAfter:addAvg, qtyAfter:addQty}]
+    };
+    coins.push(newCoin);
+    save(); render(); closeModal();
+    refreshCoinPrice(newCoin.id);
+  }
+}
+
+// ── Delete Coin ───────────────────────────────────────────────
+function deleteCoin(id,e){
+  e.stopPropagation();
+  if(!confirm('이 코인을 삭제할까요?')) return;
+  coins=coins.filter(c=>c.id!==id); expandedIds.delete(id); save(); render();
+}
+
+// ── Inline Edit: QTY ─────────────────────────────────────────
+function startQty(id,e){ e.stopPropagation();
+  const coin=coins.find(c=>c.id===id); if(!coin) return;
+  document.getElementById(`qty-t-${id}`).style.display='none';
+  document.getElementById(`qty-w-${id}`).classList.add('active');
+  const inp=document.getElementById(`qty-i-${id}`);
+  inp.value=coin.qty; inp.focus(); inp.select();
+}
+function okQty(id,e){ e?.stopPropagation();
+  const coin=coins.find(c=>c.id===id); if(!coin) return;
+  const v=parseFloat(document.getElementById(`qty-i-${id}`).value);
+  if(!isNaN(v)&&v>0){ coin.qty=v; save(); }
+  cancelQty(id); render();
+}
+function cancelQty(id,e){ e?.stopPropagation();
+  document.getElementById(`qty-t-${id}`).style.display='';
+  document.getElementById(`qty-w-${id}`)?.classList.remove('active');
+}
+
+// ── Inline Edit: AVG ─────────────────────────────────────────
+function startAvg(id,e){ e.stopPropagation();
+  const coin=coins.find(c=>c.id===id); if(!coin) return;
+  document.getElementById(`avg-v-${id}`).style.display='none';
+  document.getElementById(`avg-w-${id}`).classList.add('active');
+  const inp=document.getElementById(`avg-i-${id}`);
+  inp.value=coin.avg; inp.focus(); inp.select();
+}
+function okAvg(id,e){ e?.stopPropagation();
+  const coin=coins.find(c=>c.id===id); if(!coin) return;
+  const v=parseFloat(document.getElementById(`avg-i-${id}`).value);
+  if(!isNaN(v)&&v>0){ coin.avg=v; save(); flashBlock(id); }
+  cancelAvg(id); render();
+}
+function cancelAvg(id,e){ e?.stopPropagation();
+  document.getElementById(`avg-v-${id}`).style.display='';
+  document.getElementById(`avg-w-${id}`)?.classList.remove('active');
+}
+
+function flashBlock(id){
+  const el=document.getElementById(`block-${id}`);
+  if(!el) return; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+
+// ── Upbit ─────────────────────────────────────────────────────
+async function refreshCoinPrice(id){
+  const coin=coins.find(c=>c.id===id); if(!coin) return;
+  try{
+    const r=await fetch(`https://api.upbit.com/v1/ticker?markets=KRW-${coin.symbol}`);
+    const d=await r.json();
+    if(d?.[0]?.trade_price){ coin.cur=d[0].trade_price; save(); render(); }
+  }catch{}
+}
+async function refreshAllPrices(){
+  const syms=[...new Set(coins.map(c=>c.symbol))]; if(!syms.length) return;
+  const btn=document.querySelector('.btn-sm.refresh');
+  if(btn) btn.textContent='⟳ 조회 중...';
+  try{
+    const r=await fetch(`https://api.upbit.com/v1/ticker?markets=${syms.map(s=>`KRW-${s}`).join(',')}`);
+    const d=await r.json();
+    d?.forEach(item=>{
+      const sym=item.market.replace('KRW-','');
+      coins.filter(c=>c.symbol===sym).forEach(c=>c.cur=item.trade_price);
+    });
+    save(); render();
+  }catch{}
+  if(btn) btn.textContent='⟳ 현재가';
+}
+
+// ── Render ────────────────────────────────────────────────────
+function render(){
+  const list=document.getElementById('holdings');
+  const empty=document.getElementById('empty-state');
+  empty.style.display=coins.length===0?'block':'none';
+  list.innerHTML='';
+
+  let tCost=0,tCur=0;
+  const sorted=[...coins].sort((a,b)=>(b.qty*b.avg)-(a.qty*a.avg));
+
+  sorted.forEach(coin=>{
+    const cost=coin.qty*coin.avg;
+    const curV=coin.qty*coin.cur;
+    const pnl=curV-cost;
+    const pct=cost>0?pnl/cost*100:0;
+    tCost+=cost; tCur+=curV;
+
+    const pc=pnl>0?'profit':pnl<0?'loss':'zero';
+    const sign=pnl>0?'+':'';
+    const id=coin.id;
+    const isExpanded=expandedIds.has(id);
+    const iconUrl=ICONS[coin.symbol];
+    const iconHtml=iconUrl
+      ? `<img src="${iconUrl}" alt="${coin.symbol}" onerror="this.parentElement.style.background='${coinBg(coin.symbol)}';this.remove()">`
+      : '';
+    const iconStyle=iconUrl?'':'background:'+coinBg(coin.symbol);
+
+    // History rows
+    const histRows = (coin.history||[]).slice().reverse().map(tx=>`
+      <tr>
+        <td class="tx-date">${fmtDate(tx.date)}</td>
+        <td><span class="tx-type ${tx.type}">${tx.type==='init'?'최초':'매수'}</span></td>
+        <td class="tx-qty">+${fmtQty(tx.qty)}</td>
+        <td class="tx-price">${fmt(tx.price,'KRW')}</td>
+        <td class="tx-avg-after">${fmt(tx.avgAfter,'KRW')}</td>
+        <td><button class="tx-del" onclick="deleteTx(${id},${tx.id},event)" title="삭제">×</button></td>
+      </tr>
+    `).join('');
+
+    const block=document.createElement('div');
+    block.className='coin-block'+(isExpanded?' expanded':'');
+    block.id=`block-${id}`;
+    block.innerHTML=`
+      <div class="holding-row" onclick="toggleHistory(${id},event)">
+        <div class="coin-icon" style="${iconStyle}">${iconHtml}${!iconUrl?coin.symbol.slice(0,3):''}</div>
+
+        <div class="cell-name">
+          <span class="sym">${coin.symbol} <span class="expand-arrow">▼</span></span>
+          <span class="qty-text" id="qty-t-${id}" onclick="startQty(${id},event)">${fmtQty(coin.qty)}개 ✎</span>
+          <div class="qty-edit-wrap" id="qty-w-${id}">
+            <input class="qty-input" id="qty-i-${id}" type="number" step="any" min="0"
+              onclick="event.stopPropagation()"
+              onkeydown="if(event.key==='Enter')okQty(${id},event);if(event.key==='Escape')cancelQty(${id},event)">
+            <button class="qty-btn" onclick="okQty(${id},event)">✓</button>
+            <button class="qty-x" onclick="cancelQty(${id},event)">✕</button>
+          </div>
+        </div>
+
+        <div class="ef">
+          <div class="ef-label">평단가 <span class="eico" onclick="startAvg(${id},event)">✎</span></div>
+          <span class="ef-val" id="avg-v-${id}" onclick="startAvg(${id},event)">${fmt(coin.avg,currency)}</span>
+          <div class="ef-edit-wrap" id="avg-w-${id}">
+            <input class="ef-input" id="avg-i-${id}" type="number" step="any" min="0"
+              onclick="event.stopPropagation()"
+              onkeydown="if(event.key==='Enter')okAvg(${id},event);if(event.key==='Escape')cancelAvg(${id},event)">
+            <button class="ef-ok" onclick="okAvg(${id},event)">확인</button>
+            <button class="ef-no" onclick="cancelAvg(${id},event)">취소</button>
+          </div>
+          <span class="ef-sub">매수 ${fmt(cost,currency)}</span>
+        </div>
+
+        <div class="ef">
+          <div class="ef-label">현재가 <span class="eico" onclick="event.stopPropagation();refreshCoinPrice(${id})">⟳</span></div>
+          <span class="ef-val plain">${coin.cur?fmt(coin.cur,currency):'<span style="color:var(--muted);font-size:10px">미조회</span>'}</span>
+          <span class="ef-sub">${coin.cur?'평가 '+fmt(curV,currency):''}</span>
+        </div>
+
+        <div class="cell-pnl">
+          ${coin.cur
+            ?`<span class="pnl-val ${pc}">${sign}${fmt(pnl,currency)}</span>
+              <span class="pnl-badge ${pc}">${sign}${pct.toFixed(2)}%</span>`
+            :`<span style="font-family:var(--mono);font-size:9px;color:var(--muted)">조회<br>필요</span>`}
+          <div style="display:flex;gap:3px;margin-top:3px">
+            <button class="btn-buy-more" onclick="event.stopPropagation();openModal(${id})">＋매수</button>
+            <button class="btn-del" onclick="deleteCoin(${id},event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="history-panel">
+        <div class="history-header">
+          <span class="history-title">매수 히스토리 (${(coin.history||[]).length}건)</span>
+        </div>
+        ${(coin.history||[]).length===0
+          ? '<div class="history-empty">내역이 없어요</div>'
+          : `<table class="history-table">
+              <thead><tr>
+                <th>날짜</th><th>유형</th><th>수량</th><th>매수가</th><th>평단(후)</th><th></th>
+              </tr></thead>
+              <tbody>${histRows}</tbody>
+            </table>`}
+      </div>
+    `;
+    list.appendChild(block);
+  });
+
+  // Summary
+  const pnl=tCur-tCost, pct=tCost>0?pnl/tCost*100:0, s=pnl>0?'+':'';
+  document.getElementById('sum-cost').textContent=fmt(tCost,currency);
+  document.getElementById('sum-cur').textContent=tCur>0?fmt(tCur,currency):'조회 필요';
+  document.getElementById('sum-pnl').textContent=tCur>0?`${s}${fmt(pnl,currency)} (${s}${pct.toFixed(2)}%)`:'현재가 갱신 필요';
+  document.getElementById('sum-pnl-card').className='summary-card '+(pnl>0?'profit':pnl<0?'loss':'neutral');
+}
+
+// ── Init ──────────────────────────────────────────────────────
+setCurrency(currency);
+fetchUSDRate().then(()=>render());
+render();
+refreshAllPrices();
+</script>
+</body>
+</html>
